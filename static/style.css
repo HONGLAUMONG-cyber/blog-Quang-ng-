@@ -133,6 +133,7 @@ h1, h2, h3, p { margin-top: 0; }
 .article-body ul, .article-body ol { padding-left: 25px; }
 .article-body figure { margin: 26px 0; }
 .article-body img, .article-body video { width: 100%; max-height: 560px; display: block; object-fit: contain; background: #eeeae0; }
+.article-body iframe { width: 100%; min-height: 360px; display: block; border: 0; background: #eeeae0; }
 .article-body figcaption { padding-top: 7px; color: var(--muted); font-size: 11px; text-align: center; }
 .article-gallery { padding: 20px 0; border-top: 1px solid var(--line); }
 .article-gallery figure { margin: 17px 0 25px; }
@@ -196,6 +197,8 @@ h1, h2, h3, p { margin-top: 0; }
 .rich-editor:empty::before { color: #a0a49a; content: attr(data-placeholder); pointer-events: none; }
 .rich-editor h2, .rich-editor h3 { font-family: var(--serif); }
 .rich-editor blockquote { padding-left: 12px; border-left: 3px solid var(--peach); color: var(--muted); }
+.rich-editor img, .rich-editor video, .rich-editor iframe { max-width: 100%; margin: 10px 0; }
+.rich-editor iframe { width: 100%; min-height: 300px; border: 0; }
 .rich-editor .pending-inline-media { display: inline-block; margin: 8px 0; padding: 14px; border: 1px dashed #c9cec4; color: var(--muted); background: #f8faf6; font-size: 12px; }
 .inline-media-picker { display: none; }
 .field-hint { display: block; margin-top: 6px; color: #999e95; font-size: 9px; font-weight: 400; }

@@ -15,13 +15,13 @@
       <label class="field-label">Mô tả ngắn<textarea name="excerpt" rows="3" maxlength="500" placeholder="Một vài dòng giới thiệu để người đọc biết bài viết nói về điều gì…">{{ post.excerpt if editing else '' }}</textarea></label>
       <div class="field-label">Nội dung
         <div class="rich-toolbar" role="toolbar" aria-label="Định dạng nội dung">
-          <button type="button" data-command="bold"><b>B</b></button><button type="button" data-command="italic"><i>I</i></button><button type="button" data-command="formatBlock" data-value="h2">H2</button><button type="button" data-command="formatBlock" data-value="blockquote">❝</button><button type="button" data-command="insertUnorderedList">• Danh sách</button><button type="button" data-command="createLink">↗ Link</button><button type="button" data-insert-media="image">＋ Ảnh</button><button type="button" data-insert-media="video">＋ Video</button>
+          <button type="button" data-command="bold"><b>B</b></button><button type="button" data-command="italic"><i>I</i></button><button type="button" data-command="formatBlock" data-value="h2">H2</button><button type="button" data-command="formatBlock" data-value="blockquote">❝</button><button type="button" data-command="insertUnorderedList">• Danh sách</button><button type="button" data-command="createLink">↗ Link</button><button type="button" data-insert-media="image">＋ Tải ảnh</button><button type="button" data-insert-media="video">＋ Tải video</button><button type="button" data-insert-media-link="image">Ảnh URL</button><button type="button" data-insert-media-link="video">Video URL</button><button type="button" data-insert-media-link="embed">Nhúng web</button>
         </div>
         <div class="rich-editor" contenteditable="true" data-rich-editor data-placeholder="Viết câu chuyện của bạn ở đây…">{{ post.body_html|safe if editing else '' }}</div>
         <input class="inline-media-picker" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple data-inline-picker>
         <input type="hidden" name="inline_media_refs" value="[]" data-inline-media-refs>
         <input type="file" name="inline_media" multiple hidden data-inline-media-files>
-        <small class="field-hint">Đặt con trỏ ở vị trí cần chèn rồi chọn Ảnh hoặc Video. Tối đa 12 tệp mới cho mỗi lần lưu, gồm ảnh bìa và tệp đính kèm.</small>
+        <small class="field-hint">Đặt con trỏ rồi chọn tải tệp hoặc chèn bằng URL HTTPS. Video nhận link tệp trực tiếp hoặc link nhúng; một số website chặn iframe. URL ngoài được hiển thị trực tiếp và không lưu tệp lên VPS.</small>
       </div>
       {% if editing and media %}
         <div class="field-label">Tệp đã tải lên

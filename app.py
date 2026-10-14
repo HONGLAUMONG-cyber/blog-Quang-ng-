@@ -4,6 +4,7 @@ import argparse
 import getpass
 import html
 from html.parser import HTMLParser
+from io import BytesIO
 import json
 import os
 from pathlib import Path
@@ -28,6 +29,7 @@ from flask import (
     session,
     url_for,
 )
+from PIL import Image, ImageOps, UnidentifiedImageError
 from werkzeug.security import check_password_hash, generate_password_hash
 
 
@@ -37,6 +39,9 @@ UPLOAD_DIR = DATA_DIR / "uploads"
 DATABASE = DATA_DIR / "blog.sqlite3"
 MAX_UPLOAD_BYTES = 60 * 1024 * 1024
 MAX_FILES_PER_POST = 12
+MAX_IMAGE_DIMENSION = 1920
+IMAGE_QUALITY = 82
+COMPRESSIBLE_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 ALLOWED_EXTENSIONS = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
@@ -59,10 +64,11 @@ CATEGORIES = [
 ]
 ALLOWED_HTML_TAGS = {
     "a", "blockquote", "br", "code", "em", "figcaption", "figure", "h2",
-    "h3", "img", "li", "ol", "p", "pre", "strong", "u", "ul", "video",
+    "h3", "iframe", "img", "li", "ol", "p", "pre", "strong", "u", "ul",
+    "video",
 }
 VOID_TAGS = {"br", "img"}
-DANGEROUS_TAGS = {"iframe", "object", "script", "style", "svg"}
+DANGEROUS_TAGS = {"object", "script", "style", "svg"}
 
 
 def _load_secret() -> str:
@@ -275,6 +281,30 @@ def slugify(value: str) -> str:
     return slug[:90] or f"bai-viet-{uuid.uuid4().hex[:10]}"
 
 
+def is_safe_https_url(value: str | None) -> bool:
+    if not value or value != value.strip() or any(
+        ord(character) < 32 or ord(character) == 127 for character in value
+    ):
+        return False
+    try:
+        parsed = urlparse(value)
+        if not (
+            parsed.scheme.lower() == "https"
+            and bool(parsed.hostname)
+            and parsed.username is None
+            and parsed.password is None
+            and not any(
+                character.isspace() or character == "\\"
+                for character in parsed.netloc
+            )
+        ):
+            return False
+        parsed.port
+        return True
+    except ValueError:
+        return False
+
+
 class ArticleSanitizer(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -288,15 +318,31 @@ class ArticleSanitizer(HTMLParser):
             return
         if self.skip_depth or tag not in ALLOWED_HTML_TAGS:
             return
+        if tag == "iframe":
+            src = next((value for key, value in attrs if key == "src"), None)
+            title = next((value for key, value in attrs if key == "title"), None)
+            if src and is_safe_https_url(src):
+                self.output.append(
+                    f'<iframe src="{html.escape(src, quote=True)}" '
+                    f'title="{html.escape(title or "Nội dung nhúng", quote=True)}" '
+                    'loading="lazy" referrerpolicy="strict-origin-when-cross-origin" '
+                    'sandbox="allow-scripts allow-presentation" '
+                    'allowfullscreen></iframe>'
+                )
+            return
         if tag in VOID_TAGS:
             if tag == "br":
                 self.output.append("<br>")
                 return
             src = next((value for key, value in attrs if key == "src"), None)
             alt = next((value for key, value in attrs if key == "alt"), "")
-            if src and re.fullmatch(
-                r"/media/[a-f0-9]{32}\.(jpg|jpeg|png|webp|gif)", src
-            ):
+            local_image = bool(
+                src
+                and re.fullmatch(
+                    r"/media/[a-f0-9]{32}\.(jpg|jpeg|png|webp|gif)", src
+                )
+            )
+            if src and (local_image or is_safe_https_url(src)):
                 self.output.append(
                     f'<img src="{html.escape(src, quote=True)}" '
                     f'alt="{html.escape(alt or "", quote=True)}" loading="lazy">'
@@ -304,9 +350,13 @@ class ArticleSanitizer(HTMLParser):
             return
         if tag == "video":
             src = next((value for key, value in attrs if key == "src"), None)
-            if src and re.fullmatch(
-                r"/media/[a-f0-9]{32}\.(mp4|webm|mov)", src
-            ):
+            local_video = bool(
+                src
+                and re.fullmatch(
+                    r"/media/[a-f0-9]{32}\.(mp4|webm|mov)", src
+                )
+            )
+            if src and (local_video or is_safe_https_url(src)):
                 self.output.append(
                     f'<video src="{html.escape(src, quote=True)}" '
                     'controls playsinline preload="metadata">'
@@ -382,6 +432,43 @@ def file_signature_matches(data: bytes, extension: str) -> bool:
     return signatures.get(extension, False)
 
 
+def compress_image(
+    data: bytes, extension: str, original_name: str
+) -> tuple[bytes, str]:
+    if extension not in COMPRESSIBLE_IMAGE_EXTENSIONS:
+        return data, extension
+
+    try:
+        with Image.open(BytesIO(data)) as source:
+            if getattr(source, "n_frames", 1) > 1:
+                return data, extension
+            source.load()
+            has_alpha = "A" in source.getbands() or "transparency" in source.info
+            image = ImageOps.exif_transpose(source)
+            image.thumbnail(
+                (MAX_IMAGE_DIMENSION, MAX_IMAGE_DIMENSION),
+                Image.Resampling.LANCZOS,
+            )
+            image = image.convert("RGBA" if has_alpha else "RGB")
+            output = BytesIO()
+            save_options = {
+                "format": "WEBP",
+                "quality": IMAGE_QUALITY,
+                "method": 6,
+            }
+            icc_profile = source.info.get("icc_profile")
+            if icc_profile:
+                save_options["icc_profile"] = icc_profile
+            image.save(output, **save_options)
+    except (Image.DecompressionBombError, OSError, UnidentifiedImageError) as error:
+        raise ValueError(f"Không thể đọc ảnh “{original_name}”.") from error
+
+    compressed = output.getvalue()
+    if len(compressed) >= len(data):
+        return data, extension
+    return compressed, ".webp"
+
+
 def save_upload(upload, post_id: int, role: str) -> int | None:
     if not upload or not upload.filename:
         return None
@@ -397,6 +484,8 @@ def save_upload(upload, post_id: int, role: str) -> int | None:
         raise ValueError("Tệp tải lên vượt quá giới hạn 60 MB.")
     if not file_signature_matches(data, extension):
         raise ValueError(f"Tệp “{original_name}” không đúng định dạng khai báo.")
+    data, extension = compress_image(data, extension, original_name)
+    mime_type = ALLOWED_EXTENSIONS[extension]
     filename = f"{uuid.uuid4().hex}{extension}"
     (UPLOAD_DIR / filename).write_bytes(data)
     g.setdefault("saved_uploads", []).append(filename)
