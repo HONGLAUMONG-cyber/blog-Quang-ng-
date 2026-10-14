@@ -21,9 +21,10 @@ tối thiểu 12 ký tự. Tài khoản admin chỉ được tạo một lần; 
 cấp đăng ký công khai. Đăng nhập quản trị trực tiếp tại `/admin/login`; liên kết
 quản trị không hiển thị trên giao diện công khai.
 
-Để thêm quản trị viên sau khi đã có tài khoản đầu tiên, chạy
-`python manage_admins.py`. Script sẽ hỏi tên đăng nhập và mật khẩu, kiểm tra
-trùng tên và chỉ lưu mật khẩu đã băm; không truyền mật khẩu trên dòng lệnh.
+Để thêm quản trị viên hoặc đặt lại mật khẩu, chạy `python manage_admins.py`,
+chọn thao tác `a` (thêm) hoặc `r` (đặt lại), rồi nhập tên đăng nhập và mật khẩu
+theo lời nhắc. Mật khẩu chỉ được lưu dưới dạng hash; không truyền mật khẩu trên
+dòng lệnh.
 
 Trong VS Code, chọn interpreter `.venv/bin/python` (Python: Select Interpreter)
 để Pylance dùng đúng Flask/Werkzeug đã cài trong môi trường dự án.
