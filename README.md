@@ -26,6 +26,12 @@ chọn thao tác `a` (thêm) hoặc `r` (đặt lại), rồi nhập tên đăng
 theo lời nhắc. Mật khẩu chỉ được lưu dưới dạng hash; không truyền mật khẩu trên
 dòng lệnh.
 
+Nếu hosting không cấp Shell, có thể dùng biến môi trường: đặt
+`BLOG_ADMIN_USERNAME` và `BLOG_ADMIN_PASSWORD` trong phần Environment của dịch
+vụ rồi deploy/restart app. Sau khi khởi động, đăng nhập tại `/admin/login`.
+Giữ biến mật khẩu nếu filesystem/database của gói hosting không bền vững qua
+các lần restart; xóa biến này sau khi dùng chỉ khi database được lưu bền vững.
+
 Trong VS Code, chọn interpreter `.venv/bin/python` (Python: Select Interpreter)
 để Pylance dùng đúng Flask/Werkzeug đã cài trong môi trường dự án.
 
@@ -39,6 +45,10 @@ không được đưa lên Git:
 - `BLOG_DATA_DIR`: thư mục lưu SQLite, khóa bí mật tự sinh và nội dung upload.
   Mặc định là thư mục `data/` trong project; trên VPS hãy trỏ tới ổ đĩa bền vững
   riêng bên ngoài thư mục release.
+- `BLOG_ADMIN_USERNAME` và `BLOG_ADMIN_PASSWORD`: tùy chọn để tạo/cập nhật tài
+  khoản admin khi app khởi động. Chỉ đặt mật khẩu trong phần biến môi trường
+  bảo mật của hosting, không ghi vào source code. Nếu đặt `BLOG_ADMIN_PASSWORD`,
+  app sẽ đảm bảo tài khoản này có mật khẩu đó mỗi lần worker khởi động.
 - `BLOG_HOST` và `BLOG_PORT`: địa chỉ bind và cổng khi chạy `python app.py`.
 - `BLOG_COOKIE_SECURE=true`: bật cookie chỉ gửi qua HTTPS. Chỉ bật khi reverse
   proxy HTTPS đã được cấu hình.

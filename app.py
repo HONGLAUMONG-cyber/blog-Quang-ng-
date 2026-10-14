@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import secrets
 import sqlite3
+import threading
 import unicodedata
 import uuid
 from datetime import datetime, timezone
@@ -93,6 +94,8 @@ app.config.update(
     SESSION_COOKIE_SECURE=os.environ.get("BLOG_COOKIE_SECURE", "").lower()
     in {"1", "true", "yes"},
 )
+_admin_bootstrap_lock = threading.Lock()
+_admin_bootstrap_applied = False
 
 
 def utc_now() -> str:
@@ -193,8 +196,49 @@ def inject_site_data() -> dict[str, object]:
 
 @app.before_request
 def ensure_schema() -> None:
+    global _admin_bootstrap_applied
     if not DATABASE.exists():
         init_db()
+    configured_password = os.environ.get("BLOG_ADMIN_PASSWORD", "")
+    if configured_password and not _admin_bootstrap_applied:
+        with _admin_bootstrap_lock:
+            if not _admin_bootstrap_applied:
+                username = os.environ.get(
+                    "BLOG_ADMIN_USERNAME", "QUANGDONGADMIN"
+                ).strip()
+                if not re.fullmatch(r"[A-Za-z0-9_.-]{3,40}", username):
+                    raise RuntimeError(
+                        "BLOG_ADMIN_USERNAME must be 3-40 characters using "
+                        "letters, numbers, underscores, dots, or hyphens."
+                    )
+                if len(configured_password) < 12:
+                    raise RuntimeError(
+                        "BLOG_ADMIN_PASSWORD must contain at least 12 characters."
+                    )
+                init_db()
+                connection = sqlite3.connect(DATABASE)
+                try:
+                    admin = connection.execute(
+                        "SELECT id FROM admins WHERE username=?", (username,)
+                    ).fetchone()
+                    password_hash = generate_password_hash(
+                        configured_password, method="pbkdf2:sha256"
+                    )
+                    if admin:
+                        connection.execute(
+                            "UPDATE admins SET password_hash=? WHERE id=?",
+                            (password_hash, admin[0]),
+                        )
+                    else:
+                        connection.execute(
+                            "INSERT INTO admins(username,password_hash,created_at) "
+                            "VALUES(?,?,?)",
+                            (username, password_hash, utc_now()),
+                        )
+                    connection.commit()
+                finally:
+                    connection.close()
+                _admin_bootstrap_applied = True
     if request.method == "POST":
         submitted = request.form.get("csrf_token", "")
         expected = session.get("csrf_token", "")
