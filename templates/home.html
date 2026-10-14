@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}{{ site.site_title }} — {{ site.tagline }}{% endblock %}
+{% block content %}
+<section class="hero">
+  <div class="hero-copy">
+    <span class="eyebrow"><span class="live-dot"></span> MỘT GÓC NHỎ Ở NHẬT BẢN</span>
+    <h1>Chuyện sống ở Nhật,<br><em>kể bằng trải nghiệm thật.</em></h1>
+    <p class="hero-lead">Những va vấp đầu đời, điều ước biết sớm hơn, góc phố đã đi qua — mình ghi lại ở đây, biết đâu giúp được bạn.</p>
+    <div class="hero-actions">
+      <a class="button button-dark" href="#bai-viet">Đọc những câu chuyện <span>↓</span></a>
+      <span class="hero-note">Bởi {{ site.author }} · Nhật Bản</span>
+    </div>
+  </div>
+  <div class="hero-art" aria-label="Minh họa hoa anh đào và núi Phú Sĩ">
+    <div class="sun"></div><div class="fuji"><div class="snow"></div></div>
+    <div class="hill hill-back"></div><div class="hill hill-front"></div>
+    <div class="sakura sakura-one">✿</div><div class="sakura sakura-two">✿</div><div class="sakura sakura-three">✿</div>
+    <span class="art-label">TOKYO, 35°41′N</span>
+    <span class="art-caption">Mỗi hành trình đều bắt đầu<br>từ một bước chân.</span>
+  </div>
+</section>
+
+<section class="category-section" id="chuyen-muc">
+  <div class="section-heading">
+    <div><span class="eyebrow">ĐỌC THEO CHỦ ĐỀ</span><h2>Mình kể về…</h2></div>
+    <span class="section-aside">Chọn điều bạn đang tò mò <span>↘</span></span>
+  </div>
+  <div class="category-list">
+    <a class="category-chip {{ 'active' if not active_category else '' }}" href="{{ url_for('home') }}">Tất cả <span>↗</span></a>
+    {% for category in categories %}
+      <a class="category-chip {{ 'active' if active_category == category else '' }}" href="{{ url_for('home', category=category) }}">{{ category }} <span>↗</span></a>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="posts-section" id="bai-viet">
+  <div class="section-heading post-heading">
+    <div><span class="eyebrow">{{ 'KẾT QUẢ TÌM KIẾM' if search else 'TỪ NHẬT BẢN, VỚI THƯƠNG' }}</span><h2>{{ 'Kết quả cho “' ~ search ~ '”' if search else 'Những bài viết mới' }}</h2></div>
+    <form class="search-form" action="{{ url_for('home') }}" method="get">
+      {% if active_category %}<input type="hidden" name="category" value="{{ active_category }}">{% endif %}
+      <label class="sr-only" for="search">Tìm bài viết</label>
+      <input id="search" type="search" name="q" placeholder="Tìm điều bạn cần…" value="{{ search }}">
+      <button type="submit" aria-label="Tìm kiếm">⌕</button>
+    </form>
+  </div>
+  {% if posts %}
+    <div class="post-grid">
+      {% for post in posts %}
+        <article class="post-card">
+          <a class="post-cover" href="{{ url_for('article', slug=post.slug) }}">
+            {% if post.cover_filename %}
+              {% if post.cover_mime and post.cover_mime.startswith('video/') %}
+                <video src="{{ url_for('media_file', filename=post.cover_filename) }}" muted playsinline preload="metadata"></video>
+              {% else %}
+                <img src="{{ url_for('media_file', filename=post.cover_filename) }}" alt="" loading="lazy">
+              {% endif %}
+            {% else %}
+              <div class="cover-placeholder"><span>日本での暮らし</span><strong>{{ post.category }}</strong><i>☼</i></div>
+            {% endif %}
+            <span class="cover-arrow">↗</span>
+          </a>
+          <div class="post-meta"><span>{{ post.category }}</span><span>{{ post.published_at[:10] if post.published_at else post.created_at[:10] }}</span></div>
+          <h3><a href="{{ url_for('article', slug=post.slug) }}">{{ post.title }}</a></h3>
+          <p>{{ post.excerpt or 'Một câu chuyện nhỏ trong những ngày sống ở Nhật.' }}</p>
+          <a class="read-more" href="{{ url_for('article', slug=post.slug) }}">Đọc tiếp <span>→</span></a>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state"><span class="empty-icon">✳</span><h3>{{ 'Chưa tìm thấy bài phù hợp' if search else 'Câu chuyện đầu tiên sắp được kể' }}</h3><p>{{ 'Thử từ khóa khác hoặc xem tất cả bài viết nhé.' if search else 'Những trải nghiệm và bài viết mới sẽ xuất hiện tại đây.' }}</p><a class="text-link" href="{{ url_for('home') }}">Xem tất cả bài viết →</a></div>
+  {% endif %}
+</section>
+
+<section class="newsletter">
+  <div class="newsletter-symbol">手紙</div>
+  <div><span class="eyebrow">GỬI MỘT LỜI CHÀO</span><h2>Bạn đang chuẩn bị sang Nhật?</h2><p>Hy vọng những điều mình chia sẻ giúp hành trình của bạn bớt bỡ ngỡ hơn.</p></div>
+  <span class="newsletter-count"><strong>{{ post_count }}</strong><small>bài viết<br>được chia sẻ</small></span>
+</section>
+{% endblock %}

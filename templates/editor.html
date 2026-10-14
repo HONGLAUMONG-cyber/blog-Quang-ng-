@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% set editing = post is not none %}
+{% block title %}{{ 'Sửa bài viết' if editing else 'Viết bài mới' }} — {{ site.site_title }}{% endblock %}
+{% block content %}
+<section class="admin-page editor-page">
+  <a class="back-link" href="{{ url_for('admin_dashboard') }}">← Quay lại danh sách</a>
+  <div class="editor-heading"><div><span class="eyebrow">BÀI VIẾT & CÂU CHUYỆN</span><h1>{{ 'Chỉnh sửa bài viết' if editing else 'Một câu chuyện mới.' }}</h1></div>
+    {% if editing and post.status == 'published' %}<a class="text-link" href="{{ url_for('article', slug=post.slug) }}" target="_blank" rel="noopener">Xem bài ↗</a>{% endif %}
+  </div>
+  <form class="editor-form" method="post" enctype="multipart/form-data" data-editor-form>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="body_html" value="{{ post.body_html if editing else '' }}" data-body-input>
+    <div class="editor-main">
+      <label class="field-label">Tiêu đề bài viết<input class="title-input" name="title" value="{{ post.title if editing else '' }}" placeholder="Ví dụ: Ngày đầu tiên đi làm ở Tokyo" required maxlength="180"></label>
+      <label class="field-label">Mô tả ngắn<textarea name="excerpt" rows="3" maxlength="500" placeholder="Một vài dòng giới thiệu để người đọc biết bài viết nói về điều gì…">{{ post.excerpt if editing else '' }}</textarea></label>
+      <div class="field-label">Nội dung
+        <div class="rich-toolbar" role="toolbar" aria-label="Định dạng nội dung">
+          <button type="button" data-command="bold"><b>B</b></button><button type="button" data-command="italic"><i>I</i></button><button type="button" data-command="formatBlock" data-value="h2">H2</button><button type="button" data-command="formatBlock" data-value="blockquote">❝</button><button type="button" data-command="insertUnorderedList">• Danh sách</button><button type="button" data-command="createLink">↗ Link</button><button type="button" data-insert-media="image">＋ Ảnh</button><button type="button" data-insert-media="video">＋ Video</button>
+        </div>
+        <div class="rich-editor" contenteditable="true" data-rich-editor data-placeholder="Viết câu chuyện của bạn ở đây…">{{ post.body_html|safe if editing else '' }}</div>
+        <input class="inline-media-picker" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple data-inline-picker>
+        <input type="hidden" name="inline_media_refs" value="[]" data-inline-media-refs>
+        <input type="file" name="inline_media" multiple hidden data-inline-media-files>
+        <small class="field-hint">Đặt con trỏ ở vị trí cần chèn rồi chọn Ảnh hoặc Video. Tối đa 12 tệp mới cho mỗi lần lưu, gồm ảnh bìa và tệp đính kèm.</small>
+      </div>
+      {% if editing and media %}
+        <div class="field-label">Tệp đã tải lên
+          <div class="media-admin-grid">
+            {% for item in media %}
+              <div class="media-admin-item">
+                {% if item.mime_type.startswith('video/') %}<video src="{{ url_for('media_file', filename=item.filename) }}" controls></video>{% else %}<img src="{{ url_for('media_file', filename=item.filename) }}" alt="">{% endif %}
+                <span>{{ item.original_name }}</span>
+                <button class="remove-media" type="submit" form="delete-media-{{ item.id }}" title="Xóa tệp">×</button>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+    </div>
+    <aside class="editor-sidebar">
+      <div class="editor-box"><h3>Xuất bản</h3><label class="field-label">Trạng thái<select name="status"><option value="draft" {{ 'selected' if not editing or post.status == 'draft' else '' }}>Bản nháp</option><option value="published" {{ 'selected' if editing and post.status == 'published' else '' }}>Đăng công khai</option></select></label><button class="button button-dark button-full" type="submit">{{ 'Lưu thay đổi' if editing else 'Lưu bài viết' }} <span>→</span></button></div>
+      <div class="editor-box"><h3>Chủ đề</h3><label class="field-label">Danh mục<select name="category" required>{% for category in categories %}<option value="{{ category }}" {{ 'selected' if editing and post.category == category else '' }}>{{ category }}</option>{% endfor %}</select></label></div>
+      <div class="editor-box"><h3>Ảnh bìa</h3><label class="upload-box"><span class="upload-icon">↥</span><strong>Chọn ảnh hoặc video</strong><small>JPG, PNG, WEBP, GIF, MP4, WEBM, MOV · tối đa 60 MB</small><input type="file" name="cover" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"></label><span class="selected-file" data-file-name></span></div>
+      <div class="editor-box"><h3>Ảnh & video trong bài</h3><label class="upload-box"><span class="upload-icon">＋</span><strong>Chọn nhiều tệp</strong><small>Tối đa 12 tệp mỗi lần</small><input type="file" name="media" multiple accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" data-media-input></label><span class="selected-file" data-media-names></span></div>
+      {% if editing %}<div class="editor-box danger-box"><h3>Xóa bài viết</h3><p>Thao tác này xóa bài và toàn bộ media đã tải lên.</p><button class="button button-danger button-full" type="submit" form="delete-post" data-confirm="Bạn chắc chắn muốn xóa bài viết này?">Xóa bài viết</button></div>{% endif %}
+    </aside>
+  </form>
+  {% if editing %}
+    <form id="delete-post" method="post" action="{{ url_for('delete_post', post_id=post.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"></form>
+    {% for item in media %}<form id="delete-media-{{ item.id }}" method="post" action="{{ url_for('delete_media', media_id=item.id) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"></form>{% endfor %}
+  {% endif %}
+</section>
+{% endblock %}

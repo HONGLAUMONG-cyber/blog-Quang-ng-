@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Đăng nhập quản trị — {{ site.site_title }}{% endblock %}
+{% block content %}
+<section class="login-page">
+  <div class="login-card">
+    <span class="eyebrow">GÓC QUẢN TRỊ</span>
+    <h1>Chào Quang Đông.</h1>
+    <p>Đăng nhập để viết tiếp câu chuyện của mình.</p>
+    <form method="post" class="stack-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Tên đăng nhập<input name="username" autocomplete="username" required maxlength="80"></label>
+      <label>Mật khẩu<input type="password" name="password" autocomplete="current-password" required></label>
+      <button class="button button-dark button-full" type="submit">Đăng nhập <span>→</span></button>
+    </form>
+    <a class="back-link" href="{{ url_for('home') }}">← Về trang đọc</a>
+  </div>
+  <div class="login-art"><span class="sun"></span><div class="fuji"><div class="snow"></div></div><div class="hill hill-back"></div><div class="hill hill-front"></div><span class="sakura sakura-one">✿</span><span class="art-caption">Một trang viết,<br>nhiều hành trình.</span></div>
+</section>
+{% endblock %}

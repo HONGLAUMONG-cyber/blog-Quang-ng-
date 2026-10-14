@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ post.title }} — {{ site.site_title }}{% endblock %}
+{% block content %}
+<article class="article-page">
+  <a class="back-link" href="{{ url_for('home') }}">← Trở về trang chủ</a>
+  <header class="article-header">
+    <span class="eyebrow">{{ post.category }} <span class="meta-divider">/</span> {{ post.published_at[:10] if post.published_at else post.created_at[:10] }}</span>
+    <h1>{{ post.title }}</h1>
+    {% if post.excerpt %}<p class="article-excerpt">{{ post.excerpt }}</p>{% endif %}
+    <div class="byline"><img class="author-avatar" src="{{ url_for('static', filename='author-profile.jpg') }}" alt=""><span><strong>{{ site.author }}</strong><small>Một người Việt đang sống ở Nhật</small></span></div>
+  </header>
+  {% if post.cover_filename %}
+    {% if post.cover_mime and post.cover_mime.startswith('video/') %}
+      <video class="article-cover" src="{{ url_for('media_file', filename=post.cover_filename) }}" controls playsinline preload="metadata"></video>
+    {% else %}
+      <img class="article-cover" src="{{ url_for('media_file', filename=post.cover_filename) }}" alt="{{ post.title }}">
+    {% endif %}
+  {% endif %}
+  <div class="article-layout">
+    <div class="article-body">{{ post.body_html|safe }}</div>
+    {% if media %}
+      <section class="article-gallery">
+        <span class="eyebrow">HÌNH ẢNH & VIDEO</span>
+        {% for item in media %}
+          {% if item.mime_type.startswith('video/') %}
+            <figure><video src="{{ url_for('media_file', filename=item.filename) }}" controls preload="metadata" playsinline></video><figcaption>{{ item.original_name }}</figcaption></figure>
+          {% else %}
+            <figure><img src="{{ url_for('media_file', filename=item.filename) }}" alt="{{ item.original_name }}" loading="lazy"><figcaption>{{ item.original_name }}</figcaption></figure>
+          {% endif %}
+        {% endfor %}
+      </section>
+    {% endif %}
+    <aside class="article-note"><span>✿</span><p>Cảm ơn bạn đã dành thời gian đọc câu chuyện này. Hẹn gặp lại ở bài viết tiếp theo nhé!</p><strong>— {{ site.author }}</strong></aside>
+  </div>
+</article>
+{% endblock %}

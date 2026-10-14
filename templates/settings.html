@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Thông tin blog — {{ site.site_title }}{% endblock %}
+{% block content %}
+<section class="admin-page settings-page">
+  <div class="admin-top"><div><span class="eyebrow">KHU VỰC QUẢN TRỊ</span><h1>Thông tin blog.</h1><p>Chỉnh lời chào và cách độc giả tìm thấy bạn.</p></div><a class="button button-light" href="{{ url_for('admin_dashboard') }}">← Bài viết</a></div>
+  <div class="admin-nav"><a href="{{ url_for('admin_dashboard') }}">Bài viết</a><a class="active" href="{{ url_for('admin_settings') }}">Thông tin blog</a><a href="{{ url_for('home') }}" target="_blank" rel="noopener">Xem trang ↗</a><form method="post" action="{{ url_for('admin_logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Đăng xuất</button></form></div>
+  <form method="post" class="settings-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label class="field-label">Tên blog<input name="site_title" required maxlength="100" value="{{ values.site_title }}"></label>
+    <label class="field-label">Dòng giới thiệu<input name="tagline" maxlength="240" value="{{ values.tagline }}"></label>
+    <label class="field-label">Tên tác giả<input name="author" maxlength="80" value="{{ values.author }}"></label>
+    <label class="field-label">Lời giới thiệu<textarea name="about" rows="5" maxlength="3000">{{ values.about }}</textarea></label>
+    <label class="field-label">Liên kết liên hệ (tùy chọn)<input type="url" name="contact_url" placeholder="https://facebook.com/…" value="{{ values.contact_url }}"></label>
+    <button class="button button-dark" type="submit">Lưu thông tin <span>→</span></button>
+  </form>
+</section>
+{% endblock %}

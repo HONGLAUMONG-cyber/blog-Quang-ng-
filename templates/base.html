@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8f6f1">
+  <meta name="description" content="{{ site.tagline }}">
+  <title>{% block title %}{{ site.site_title }}{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="topline"><span>NHẬT KÝ XỨ PHÙ TANG</span><span>Ghi lại những điều thật, sống những ngày thật</span></div>
+  <header class="site-header">
+    <a class="brand" href="{{ url_for('home') }}">
+      <img class="brand-mark" src="{{ url_for('static', filename='author-profile.jpg') }}" alt="">
+      <span><strong>{{ site.site_title }}</strong><small>{{ site.tagline }}</small></span>
+    </a>
+    <nav class="main-nav" aria-label="Điều hướng chính">
+      <a href="{{ url_for('home') }}">Trang chủ</a>
+      <a href="{{ url_for('home') }}#chuyen-muc">Chủ đề</a>
+      <a href="{{ url_for('home') }}#ve-minh">Về mình</a>
+      <a href="{{ url_for('contact') }}">Liên hệ</a>
+    </nav>
+  </header>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-wrap">
+        {% for category, message in messages %}
+          <div class="flash flash-{{ category }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+  <main>{% block content %}{% endblock %}</main>
+  <footer class="site-footer" id="ve-minh">
+    <div class="footer-inner">
+      <div><span class="eyebrow">LỜI CHÀO TỪ NHẬT BẢN</span><h2>Xin chào, mình là {{ site.author }}.</h2><p>{{ site.about }}</p></div>
+      <div class="footer-side">
+        <a class="button button-light" href="{{ url_for('contact') }}">Thông tin liên hệ <span>↗</span></a>
+      </div>
+    </div>
+    <div class="footer-bottom"><span>© {{ site.site_title }} · Viết từ Nhật Bản</span><span>Made with care, shared with you.</span></div>
+  </footer>
+  <script src="{{ url_for('static', filename='site.js') }}" defer></script>
+</body>
+</html>

@@ -1,0 +1,3 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} — {{ site.site_title }}{% endblock %}
+{% block content %}<section class="error-page"><span class="eyebrow">ỐI, CÓ CHÚT TRỤC TRẶC</span><h1>{{ title }}</h1><p>{{ message }}</p><a class="button button-dark" href="{{ url_for('home') }}">Về trang chủ <span>→</span></a></section>{% endblock %}

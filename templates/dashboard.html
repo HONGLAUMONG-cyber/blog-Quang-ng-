@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Quản trị — {{ site.site_title }}{% endblock %}
+{% block content %}
+<section class="admin-page">
+  <div class="admin-top">
+    <div><span class="eyebrow">KHU VỰC QUẢN TRỊ</span><h1>Góc viết của bạn.</h1><p>Xin chào, {{ session.get('admin_username') }}. Hôm nay mình sẽ kể chuyện gì?</p></div>
+    <a class="button button-dark" href="{{ url_for('new_post') }}">＋ Viết bài mới</a>
+  </div>
+  <div class="admin-nav">
+    <a class="active" href="{{ url_for('admin_dashboard') }}">Bài viết</a>
+    <a href="{{ url_for('admin_settings') }}">Thông tin blog</a>
+    <a href="{{ url_for('home') }}" target="_blank" rel="noopener">Xem trang ↗</a>
+    <form method="post" action="{{ url_for('admin_logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Đăng xuất</button></form>
+  </div>
+  <div class="stat-row">
+    <div class="stat-card"><span>Tất cả bài viết</span><strong>{{ posts|length }}</strong></div>
+    <div class="stat-card"><span>Đã xuất bản</span><strong>{{ published_count }}</strong></div>
+    <div class="stat-card"><span>Bản nháp</span><strong>{{ draft_count }}</strong></div>
+  </div>
+  <div class="table-wrap">
+    <table class="post-table">
+      <thead><tr><th>Bài viết</th><th>Chủ đề</th><th>Trạng thái</th><th>Cập nhật</th><th></th></tr></thead>
+      <tbody>
+        {% for post in posts %}
+          <tr>
+            <td><div class="table-title">{% if post.cover_filename %}<img src="{{ url_for('media_file', filename=post.cover_filename) }}" alt="">{% else %}<span class="table-placeholder">QD</span>{% endif %}<a href="{{ url_for('admin_edit_post', post_id=post.id) }}"><strong>{{ post.title }}</strong><small>/bai-viet/{{ post.slug }}</small></a></div></td>
+            <td>{{ post.category }}</td>
+            <td><span class="status-pill {{ 'published' if post.status == 'published' else 'draft' }}">{{ 'Đã đăng' if post.status == 'published' else 'Bản nháp' }}</span></td>
+            <td>{{ post.updated_at[:10] }}</td>
+            <td><a class="table-edit" href="{{ url_for('admin_edit_post', post_id=post.id) }}">Mở →</a></td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" class="table-empty">Chưa có bài viết. Bắt đầu bằng câu chuyện đầu tiên nhé.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
