@@ -96,10 +96,26 @@ manager hiện có.
 
 ## Sao lưu và cập nhật
 
-Sao lưu cả file SQLite `blog.sqlite3` và thư mục `uploads/`; nên dừng ứng dụng
-hoặc tạo bản sao nhất quán bằng SQLite backup API trước khi sao chép DB đang
-chạy. Bảo quản cả `.secret-key` (hoặc giá trị `BLOG_SECRET_KEY`) để phiên đăng
-nhập không bị vô hiệu sau khôi phục.
+Mỗi khi tạo bài đã xuất bản, xuất bản bản nháp hoặc lưu chỉnh sửa bài đã xuất
+bản, ứng dụng tự tạo một file nén gồm bản SQLite nhất quán, `uploads/` và
+`.secret-key` nếu khóa được tạo từ file. Mặc định file nằm trong
+`BLOG_DATA_DIR/backups/`; có thể đặt `BLOG_BACKUP_DIR` để dùng thư mục khác mà
+user chạy ứng dụng có quyền ghi. Ứng dụng chỉ giữ ba bản mới nhất và tự xóa bản
+cũ hơn. Nếu backup lỗi, bài viết vẫn được lưu; trang quản trị hiển thị cảnh báo
+và lỗi được ghi vào log service.
+
+Để tạo bản backup ban đầu hoặc tạo thủ công:
+
+```sh
+flask --app app backup-now
+```
+
+Khi khôi phục, dừng service trước, giải nén một file `backup-*.tar.gz`, rồi chép
+`blog.sqlite3`, `uploads/` và `.secret-key` (nếu có) về thư mục `BLOG_DATA_DIR`
+đúng vị trí, sau đó khởi động lại service. Nếu dùng `BLOG_SECRET_KEY` thay cho
+`.secret-key`, cần giữ nguyên giá trị biến môi trường đó. Backup trên cùng VPS
+không bảo vệ dữ liệu nếu VPS hoặc ổ đĩa bị mất; nên tải định kỳ các file backup
+sang một nơi lưu trữ khác.
 
 Khi cập nhật code, giữ nguyên `BLOG_DATA_DIR`, database, uploads và secret key.
 Chỉ cập nhật dependencies theo `requirements.txt`, sau đó restart service. Không

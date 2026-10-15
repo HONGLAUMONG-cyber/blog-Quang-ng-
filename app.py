@@ -11,7 +11,9 @@ from pathlib import Path
 import re
 import secrets
 import sqlite3
+import tarfile
 import threading
+import tempfile
 import unicodedata
 import uuid
 from datetime import datetime, timezone
@@ -38,6 +40,10 @@ ROOT = Path(__file__).resolve().parent
 DATA_DIR = Path(os.environ.get("BLOG_DATA_DIR", ROOT / "data")).resolve()
 UPLOAD_DIR = DATA_DIR / "uploads"
 DATABASE = DATA_DIR / "blog.sqlite3"
+BACKUP_DIR = Path(
+    os.environ.get("BLOG_BACKUP_DIR", DATA_DIR / "backups")
+).resolve()
+MAX_BACKUPS = 3
 MAX_UPLOAD_BYTES = 60 * 1024 * 1024
 MAX_FILES_PER_POST = 12
 MAX_IMAGE_DIMENSION = 1920
@@ -504,6 +510,79 @@ def compress_image(
     return compressed, ".webp"
 
 
+class BackupError(Exception):
+    pass
+
+
+def create_backup() -> Path:
+    if not DATABASE.is_file():
+        raise BackupError(f"Không tìm thấy database: {DATABASE}")
+    if BACKUP_DIR == UPLOAD_DIR or UPLOAD_DIR in BACKUP_DIR.parents:
+        raise BackupError("Thư mục backup không được nằm bên trong uploads.")
+
+    try:
+        BACKUP_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+        with (BACKUP_DIR / ".backup.lock").open("a+b") as lock_file:
+            import fcntl
+
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            with tempfile.TemporaryDirectory(
+                prefix=".backup-", dir=BACKUP_DIR
+            ) as temporary_directory:
+                temporary_path = Path(temporary_directory)
+                database_snapshot = temporary_path / "blog.sqlite3"
+                temporary_archive = temporary_path / "archive.tar.gz"
+                with sqlite3.connect(DATABASE) as source:
+                    with sqlite3.connect(database_snapshot) as destination:
+                        source.backup(destination)
+
+                with tarfile.open(
+                    temporary_archive, mode="w:gz", compresslevel=3
+                ) as archive:
+                    archive.add(database_snapshot, arcname="blog.sqlite3")
+                    if UPLOAD_DIR.is_dir():
+                        archive.add(UPLOAD_DIR, arcname="uploads")
+                    secret_file = DATA_DIR / ".secret-key"
+                    if secret_file.is_file():
+                        archive.add(secret_file, arcname=".secret-key")
+
+                timestamp = datetime.now(timezone.utc).strftime(
+                    "%Y%m%dT%H%M%S%fZ"
+                )
+                backup_path = BACKUP_DIR / (
+                    f"backup-{timestamp}-{uuid.uuid4().hex[:8]}.tar.gz"
+                )
+                os.replace(temporary_archive, backup_path)
+
+            backups = sorted(
+                BACKUP_DIR.glob("backup-*.tar.gz"),
+                key=lambda path: path.name,
+                reverse=True,
+            )
+            for old_backup in backups[MAX_BACKUPS:]:
+                old_backup.unlink()
+            return backup_path
+    except (OSError, sqlite3.Error, tarfile.TarError) as error:
+        raise BackupError(f"Không thể tạo hoặc xoay vòng bản backup: {error}") from error
+
+
+def flash_publish_backup(message: str) -> None:
+    try:
+        backup_path = create_backup()
+    except BackupError as error:
+        app.logger.error(
+            "Bài đã xuất bản nhưng backup tự động thất bại: %s",
+            error,
+            exc_info=True,
+        )
+        flash(
+            f"{message} Tuy nhiên backup thất bại; hãy kiểm tra log dịch vụ.",
+            "error",
+        )
+        return
+    flash(f"{message} Đã tạo backup {backup_path.name}.", "success")
+
+
 def save_upload(upload, post_id: int, role: str) -> int | None:
     if not upload or not upload.filename:
         return None
@@ -852,7 +931,10 @@ def new_post():
             get_db().commit()
             flash(str(error), "error")
             return render_template("editor.html", post=None, categories=CATEGORIES)
-        flash("Đã tạo bài viết.", "success")
+        if values["status"] == "published":
+            flash_publish_backup("Đã tạo và xuất bản bài viết.")
+        else:
+            flash("Đã tạo bài viết nháp.", "success")
         return redirect(url_for("admin_edit_post", post_id=post_id))
     return render_template("editor.html", post=None, categories=CATEGORIES)
 
@@ -918,7 +1000,10 @@ def admin_edit_post(post_id: int):
             discard_saved_uploads()
             flash(str(error), "error")
             return redirect(url_for("admin_edit_post", post_id=post_id))
-        flash("Đã lưu bài viết.", "success")
+        if values["status"] == "published":
+            flash_publish_backup("Đã lưu bài viết.")
+        else:
+            flash("Đã lưu bài viết nháp.", "success")
         return redirect(url_for("admin_edit_post", post_id=post_id))
     return render_template(
         "editor.html", post=post, categories=CATEGORIES,
@@ -1019,6 +1104,16 @@ def create_admin() -> None:
     connection.commit()
     connection.close()
     print("Đã tạo tài khoản admin.")
+
+
+@app.cli.command("backup-now")
+def backup_now() -> None:
+    """Tạo ngay một bản backup đầy đủ và giữ tối đa ba bản gần nhất."""
+    try:
+        backup_path = create_backup()
+    except BackupError as error:
+        raise SystemExit(str(error)) from error
+    print(f"Đã tạo backup: {backup_path}")
 
 
 if __name__ == "__main__":
