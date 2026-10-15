@@ -60,7 +60,9 @@ ngay trong nội dung, hoặc dùng nút Ảnh URL, Video URL, Nhúng web để 
 media từ URL HTTPS bên ngoài mà không tải file đó về máy chủ. URL video tệp
 trực tiếp dùng thẻ video; URL trang web dùng iframe sandbox và cần website nguồn
 cho phép nhúng (một số nền tảng yêu cầu URL embed riêng hoặc chặn iframe). Ảnh
-tĩnh JPG, PNG và WEBP được tự xoay theo EXIF, thu nhỏ tối đa còn 1920 px mỗi
+chèn bằng URL có thể đặt mô tả alt/title và chú thích hiển thị bên dưới ảnh; chọn
+ảnh trong editor rồi bấm “Sửa tiêu đề/chú thích ảnh” để thay đổi. Ảnh tĩnh JPG,
+PNG và WEBP được tự xoay theo EXIF, thu nhỏ tối đa còn 1920 px mỗi
 chiều và nén sang WEBP chất lượng 82 trước khi lưu; nếu bản nén lớn hơn ảnh gốc
 thì ảnh gốc được giữ nguyên. GIF và ảnh động được giữ nguyên để không làm mất
 hoạt ảnh; video tải lên không bị chuyển đổi.

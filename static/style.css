@@ -133,6 +133,7 @@ h1, h2, h3, p { margin-top: 0; }
 .article-body ul, .article-body ol { padding-left: 25px; }
 .article-body figure { margin: 26px 0; }
 .article-body img, .article-body video { width: 100%; max-height: 560px; display: block; object-fit: contain; background: #eeeae0; }
+.article-body figure figcaption { padding-top: 7px; color: var(--muted); font-size: 11px; text-align: center; }
 .article-body iframe { width: 100%; min-height: 360px; display: block; border: 0; background: #eeeae0; }
 .article-body figcaption { padding-top: 7px; color: var(--muted); font-size: 11px; text-align: center; }
 .article-gallery { padding: 20px 0; border-top: 1px solid var(--line); }

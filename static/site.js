@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const inlineFilesInput = document.querySelector("[data-inline-media-files]");
     const inlineRefsInput = document.querySelector("[data-inline-media-refs]");
     let savedRange = null;
+    let selectedImage = null;
     const inlineFiles = new Map();
 
     const saveSelection = () => {
@@ -73,6 +74,25 @@ document.addEventListener("DOMContentLoaded", () => {
       return url;
     };
 
+    const getImageUrl = (url) => {
+      if (
+        /^https?:$/.test(url.protocol) &&
+        /(^|\.)google\.[a-z.]+$/i.test(url.hostname) &&
+        url.pathname === "/imgres"
+      ) {
+        const imageUrl = url.searchParams.get("imgurl");
+        if (imageUrl) {
+          try {
+            const parsedImageUrl = new URL(imageUrl);
+            if (parsedImageUrl.protocol === "https:") return parsedImageUrl;
+          } catch {
+            return url;
+          }
+        }
+      }
+      return url;
+    };
+
     toolbar?.addEventListener("mousedown", (event) => {
       if (event.target instanceof Element && event.target.closest("button")) {
         saveSelection();
@@ -95,6 +115,13 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       if (inlineFilesInput) inlineFilesInput.files = transfer.files;
       if (inlineRefsInput) inlineRefsInput.value = JSON.stringify(refs);
+    });
+
+    editor.addEventListener("click", (event) => {
+      if (event.target instanceof HTMLImageElement) {
+        selectedImage = event.target;
+      }
+      saveSelection();
     });
 
     document.querySelectorAll("[data-command]").forEach((button) => {
@@ -148,10 +175,34 @@ document.addEventListener("DOMContentLoaded", () => {
 
         let node;
         if (kind === "image") {
+          const imageUrl = getImageUrl(url);
+          const description = window.prompt(
+            "Mô tả/tiêu đề ảnh (dùng cho trình đọc màn hình và khi rê chuột):",
+            imageUrl.hostname
+          );
+          if (description === null) return;
+          const caption = window.prompt(
+            "Chú thích hiển thị bên dưới ảnh (để trống nếu không cần):",
+            ""
+          );
+          if (caption === null) return;
+
+          const figure = document.createElement("figure");
           node = document.createElement("img");
-          node.src = url.href;
-          node.alt = url.hostname;
+          node.src = imageUrl.href;
+          node.alt = description.trim();
+          node.title = description.trim();
           node.loading = "lazy";
+          node.addEventListener("error", () => {
+            node.title = "Không tải được ảnh. Hãy dùng URL HTTPS trực tiếp của ảnh.";
+          }, { once: true });
+          figure.append(node);
+          if (caption.trim()) {
+            const figcaption = document.createElement("figcaption");
+            figcaption.textContent = caption.trim();
+            figure.append(figcaption);
+          }
+          node = figure;
         } else if (
           kind === "video" &&
           /\.(mp4|webm|mov)$/i.test(url.pathname)
@@ -168,11 +219,53 @@ document.addEventListener("DOMContentLoaded", () => {
           node.title = "Nội dung nhúng từ " + embedUrl.hostname;
           node.loading = "lazy";
           node.referrerPolicy = "strict-origin-when-cross-origin";
-          node.setAttribute("sandbox", "allow-scripts allow-presentation");
+          const sandbox = ["allow-scripts", "allow-presentation"];
+          if (embedUrl.origin !== window.location.origin) {
+            sandbox.push("allow-same-origin");
+          }
+          node.setAttribute("sandbox", sandbox.join(" "));
           node.allowFullscreen = true;
         }
         insertAtSelection(node);
+        selectedImage = node instanceof HTMLImageElement
+          ? node
+          : node.querySelector?.("img") || null;
       });
+    });
+
+    document.querySelector("[data-edit-image-caption]")?.addEventListener("click", () => {
+      if (!selectedImage || !editor.contains(selectedImage)) {
+        window.alert("Bấm vào ảnh cần sửa trước.");
+        return;
+      }
+      const currentDescription = selectedImage.alt || selectedImage.title || "";
+      const description = window.prompt("Mô tả/tiêu đề ảnh:", currentDescription);
+      if (description === null) return;
+
+      const figure = selectedImage.closest("figure");
+      const currentCaption = figure?.querySelector("figcaption");
+      const caption = window.prompt(
+        "Chú thích hiển thị bên dưới ảnh (để trống để xóa):",
+        currentCaption?.textContent || ""
+      );
+      if (caption === null) return;
+      selectedImage.alt = description.trim();
+      selectedImage.title = description.trim();
+      if (!figure) {
+        const wrapper = document.createElement("figure");
+        selectedImage.replaceWith(wrapper);
+        wrapper.append(selectedImage);
+      }
+      const imageFigure = selectedImage.closest("figure");
+      const existingCaption = imageFigure.querySelector("figcaption");
+      if (caption.trim()) {
+        const figcaption = existingCaption || document.createElement("figcaption");
+        figcaption.textContent = caption.trim();
+        if (!existingCaption) imageFigure.append(figcaption);
+      } else {
+        existingCaption?.remove();
+      }
+      saveSelection();
     });
 
     inlinePicker?.addEventListener("change", () => {

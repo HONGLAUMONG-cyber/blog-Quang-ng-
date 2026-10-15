@@ -16,13 +16,14 @@ import unicodedata
 import uuid
 from datetime import datetime, timezone
 from functools import wraps
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from flask import (
     Flask,
     abort,
     flash,
     g,
+    has_request_context,
     redirect,
     render_template,
     request,
@@ -305,6 +306,23 @@ def is_safe_https_url(value: str | None) -> bool:
         return False
 
 
+def normalize_google_image_url(value: str) -> str:
+    try:
+        parsed = urlparse(value)
+        host = (parsed.hostname or "").lower()
+        if (
+            parsed.scheme.lower() in {"http", "https"}
+            and re.fullmatch(r"(?:www\.)?google\.[a-z.]+", host)
+            and parsed.path == "/imgres"
+        ):
+            image_url = parse_qs(parsed.query).get("imgurl", [None])[0]
+            if image_url and is_safe_https_url(image_url):
+                return image_url
+    except ValueError:
+        pass
+    return value
+
+
 class ArticleSanitizer(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -322,11 +340,21 @@ class ArticleSanitizer(HTMLParser):
             src = next((value for key, value in attrs if key == "src"), None)
             title = next((value for key, value in attrs if key == "title"), None)
             if src and is_safe_https_url(src):
+                sandbox = "allow-scripts allow-presentation"
+                current_host = (
+                    urlparse(request.host_url).hostname
+                    if has_request_context()
+                    else None
+                )
+                if urlparse(src).hostname != current_host:
+                    sandbox += " allow-same-origin"
                 self.output.append(
                     f'<iframe src="{html.escape(src, quote=True)}" '
                     f'title="{html.escape(title or "Nội dung nhúng", quote=True)}" '
                     'loading="lazy" referrerpolicy="strict-origin-when-cross-origin" '
-                    'sandbox="allow-scripts allow-presentation" '
+                    f'sandbox="{sandbox}" '
+                    'allow="accelerometer; autoplay; clipboard-write; encrypted-media; '
+                    'gyroscope; picture-in-picture; web-share" '
                     'allowfullscreen></iframe>'
                 )
             return
@@ -336,6 +364,9 @@ class ArticleSanitizer(HTMLParser):
                 return
             src = next((value for key, value in attrs if key == "src"), None)
             alt = next((value for key, value in attrs if key == "alt"), "")
+            title = next((value for key, value in attrs if key == "title"), None)
+            if src:
+                src = normalize_google_image_url(src)
             local_image = bool(
                 src
                 and re.fullmatch(
@@ -343,9 +374,13 @@ class ArticleSanitizer(HTMLParser):
                 )
             )
             if src and (local_image or is_safe_https_url(src)):
+                safe_title = (
+                    f' title="{html.escape(title, quote=True)}"' if title else ""
+                )
                 self.output.append(
                     f'<img src="{html.escape(src, quote=True)}" '
-                    f'alt="{html.escape(alt or "", quote=True)}" loading="lazy">'
+                    f'alt="{html.escape(alt or "", quote=True)}"{safe_title} '
+                    'loading="lazy">'
                 )
             return
         if tag == "video":
@@ -673,6 +708,8 @@ def article(slug: str):
     post = get_post(slug)
     if not post:
         abort(404)
+    post = dict(post)
+    post["body_html"] = sanitize_article_html(post["body_html"])
     return render_template("article.html", post=post, media=get_post_media(post["id"]))
 
 
