@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import argparse
+from email.message import EmailMessage
+from email.utils import formataddr
+import hashlib
 import getpass
 import html
 from html.parser import HTMLParser
@@ -10,14 +13,17 @@ import os
 from pathlib import Path
 import re
 import secrets
+import smtplib
 import sqlite3
+import ssl
 import tarfile
 import threading
 import tempfile
 import unicodedata
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import wraps
+from itsdangerous import BadSignature, URLSafeSerializer
 from urllib.parse import parse_qs, urlparse
 
 from flask import (
@@ -110,6 +116,8 @@ app.config.update(
 )
 _admin_bootstrap_lock = threading.Lock()
 _admin_bootstrap_applied = False
+_subscriber_schema_lock = threading.Lock()
+_subscriber_schema_ready = False
 
 
 def utc_now() -> str:
@@ -180,6 +188,17 @@ def init_db() -> None:
             failures INTEGER NOT NULL DEFAULT 0,
             last_failure REAL NOT NULL DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS email_subscribers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL UNIQUE,
+            status TEXT NOT NULL CHECK(
+                status IN ('pending', 'active', 'unsubscribed')
+            ),
+            confirmation_token_hash TEXT,
+            unsubscribe_token_hash TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL,
+            confirmed_at TEXT
+        );
         """
     )
     connection.execute(
@@ -192,6 +211,32 @@ def init_db() -> None:
     )
     connection.commit()
     connection.close()
+
+
+def ensure_subscriber_schema() -> None:
+    global _subscriber_schema_ready
+    if _subscriber_schema_ready:
+        return
+    with _subscriber_schema_lock:
+        if _subscriber_schema_ready:
+            return
+        with sqlite3.connect(DATABASE) as connection:
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS email_subscribers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT NOT NULL UNIQUE,
+                    status TEXT NOT NULL CHECK(
+                        status IN ('pending', 'active', 'unsubscribed')
+                    ),
+                    confirmation_token_hash TEXT,
+                    unsubscribe_token_hash TEXT NOT NULL UNIQUE,
+                    created_at TEXT NOT NULL,
+                    confirmed_at TEXT
+                )
+                """
+            )
+        _subscriber_schema_ready = True
 
 
 def site_settings() -> dict[str, str]:
@@ -213,6 +258,7 @@ def ensure_schema() -> None:
     global _admin_bootstrap_applied
     if not DATABASE.exists():
         init_db()
+    ensure_subscriber_schema()
     configured_password = os.environ.get("BLOG_ADMIN_PASSWORD", "")
     if configured_password and not _admin_bootstrap_applied:
         with _admin_bootstrap_lock:
@@ -258,6 +304,128 @@ def ensure_schema() -> None:
         expected = session.get("csrf_token", "")
         if not expected or not secrets.compare_digest(submitted, expected):
             abort(400, description="Phiên biểu mẫu không hợp lệ. Hãy tải lại trang.")
+
+
+def _token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _public_url(path: str) -> str:
+    base_url = os.environ.get(
+        "BLOG_PUBLIC_URL", "https://quangdongofficial.com"
+    ).rstrip("/")
+    return f"{base_url}{path}"
+
+
+def send_email(recipient: str, subject: str, body: str) -> None:
+    host = os.environ.get("MAIL_SERVER", "").strip()
+    username = os.environ.get("MAIL_USERNAME", "").strip()
+    password = os.environ.get("MAIL_PASSWORD", "")
+    sender = os.environ.get("MAIL_DEFAULT_SENDER", "").strip()
+    if not all((host, username, password, sender)):
+        raise RuntimeError(
+            "Thiếu cấu hình MAIL_SERVER, MAIL_USERNAME, MAIL_PASSWORD "
+            "hoặc MAIL_DEFAULT_SENDER."
+        )
+
+    port = int(os.environ.get("MAIL_PORT", "587"))
+    message = EmailMessage()
+    message["Subject"] = subject.replace("\r", " ").replace("\n", " ")
+    message["From"] = formataddr(
+        (os.environ.get("MAIL_FROM_NAME", "Quang Đông Japan"), sender)
+    )
+    message["To"] = recipient
+    message.set_content(body)
+
+    context = ssl.create_default_context()
+    if os.environ.get("MAIL_USE_SSL", "").lower() in {"1", "true", "yes"}:
+        with smtplib.SMTP_SSL(host, port, context=context, timeout=20) as smtp:
+            smtp.login(username, password)
+            smtp.send_message(message)
+        return
+
+    with smtplib.SMTP(host, port, timeout=20) as smtp:
+        smtp.ehlo()
+        smtp.starttls(context=context)
+        smtp.ehlo()
+        smtp.login(username, password)
+        smtp.send_message(message)
+
+
+def notify_new_post(post_id: int) -> tuple[int, int]:
+    post = get_db().execute(
+        "SELECT title,slug,excerpt FROM posts "
+        "WHERE id=? AND status='published'",
+        (post_id,),
+    ).fetchone()
+    if not post:
+        return 0, 0
+    subscribers = get_db().execute(
+        "SELECT id,email,unsubscribe_token_hash FROM email_subscribers "
+        "WHERE status='active' ORDER BY id"
+    ).fetchall()
+    if not subscribers:
+        return 0, 0
+
+    article_url = _public_url(url_for("article", slug=post["slug"]))
+    sent = 0
+    failed = 0
+    for subscriber in subscribers:
+        unsubscribe_token = URLSafeSerializer(
+            app.config["SECRET_KEY"], salt="email-unsubscribe"
+        ).dumps(
+            {
+                "id": subscriber["id"],
+                "key": subscriber["unsubscribe_token_hash"],
+            }
+        )
+        unsubscribe_url = _public_url(
+            url_for("unsubscribe", token=unsubscribe_token)
+        )
+        body = (
+            f"Xin chào,\n\nQuang Đông vừa đăng bài viết mới:\n"
+            f"{post['title']}\n\n"
+            f"{post['excerpt']}\n\nĐọc bài viết tại:\n{article_url}\n\n"
+            f"Nếu không muốn nhận email nữa, hãy mở liên kết này:\n"
+            f"{unsubscribe_url}\n"
+        )
+        try:
+            send_email(
+                subscriber["email"],
+                f"Bài viết mới: {post['title']}",
+                body,
+            )
+            sent += 1
+        except (OSError, RuntimeError, smtplib.SMTPException, ValueError):
+            failed += 1
+            app.logger.exception(
+                "Không gửi được thông báo bài mới cho subscriber id=%s",
+                subscriber["id"],
+            )
+    return sent, failed
+
+
+def flash_new_post_notification(post_id: int) -> None:
+    sent, failed = notify_new_post(post_id)
+    if failed:
+        flash(
+            f"Bài đã đăng; gửi email thành công cho {sent} người, "
+            f"thất bại với {failed} người. Hãy kiểm tra log dịch vụ.",
+            "error",
+        )
+
+
+def _send_subscription_confirmation(email: str, token: str) -> None:
+    confirmation_url = _public_url(
+        url_for("confirm_subscription", token=token)
+    )
+    send_email(
+        email,
+        "Xác nhận nhận thông báo bài viết mới",
+        "Bạn vừa đăng ký nhận email khi Quang Đông Japan có bài viết mới.\n\n"
+        f"Để xác nhận đăng ký, hãy mở liên kết này:\n{confirmation_url}\n\n"
+        "Nếu bạn không yêu cầu đăng ký, hãy bỏ qua email này.",
+    )
 
 
 @app.errorhandler(413)
@@ -778,6 +946,168 @@ def home():
     )
 
 
+@app.post("/dang-ky-email")
+def subscribe_email():
+    email_address = request.form.get("email", "").strip().lower()
+    if (
+        len(email_address) > 254
+        or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email_address)
+    ):
+        flash("Hãy nhập địa chỉ email hợp lệ.", "error")
+        return redirect(url_for("home", _anchor="newsletter"))
+
+    existing = get_db().execute(
+        "SELECT id,status,created_at FROM email_subscribers WHERE email=?",
+        (email_address,),
+    ).fetchone()
+    if existing and existing["status"] == "active":
+        flash(
+            "Nếu địa chỉ này chưa đăng ký, hãy kiểm tra hộp thư để xác nhận.",
+            "success",
+        )
+        return redirect(url_for("home", _anchor="newsletter"))
+    if existing:
+        last_requested = datetime.fromisoformat(existing["created_at"])
+        if datetime.now(timezone.utc) - last_requested < timedelta(minutes=10):
+            flash(
+                "Nếu địa chỉ này chưa đăng ký, hãy kiểm tra hộp thư để xác nhận.",
+                "success",
+            )
+            return redirect(url_for("home", _anchor="newsletter"))
+
+    confirmation_token = secrets.token_urlsafe(32)
+    unsubscribe_key = secrets.token_urlsafe(32)
+    now = utc_now()
+    if existing:
+        get_db().execute(
+            "UPDATE email_subscribers SET status='pending',"
+            "confirmation_token_hash=?,unsubscribe_token_hash=?,"
+            "created_at=?,confirmed_at=NULL WHERE id=?",
+            (
+                _token_hash(confirmation_token),
+                _token_hash(unsubscribe_key),
+                now,
+                existing["id"],
+            ),
+        )
+    else:
+        get_db().execute(
+            "INSERT INTO email_subscribers("
+            "email,status,confirmation_token_hash,unsubscribe_token_hash,"
+            "created_at,confirmed_at) VALUES(?,'pending',?,?,?,NULL)",
+            (
+                email_address,
+                _token_hash(confirmation_token),
+                _token_hash(unsubscribe_key),
+                now,
+            ),
+        )
+    get_db().commit()
+
+    try:
+        _send_subscription_confirmation(email_address, confirmation_token)
+    except (
+        OSError,
+        RuntimeError,
+        smtplib.SMTPException,
+        ValueError,
+    ):
+        app.logger.exception("Không gửi được email xác nhận đăng ký.")
+        flash(
+            "Chưa gửi được email xác nhận. Vui lòng thử lại sau hoặc liên hệ quản trị.",
+            "error",
+        )
+    else:
+        flash(
+            "Hãy kiểm tra hộp thư và bấm liên kết xác nhận để hoàn tất đăng ký.",
+            "success",
+        )
+    return redirect(url_for("home", _anchor="newsletter"))
+
+
+@app.route("/email/xac-nhan/<token>", methods=["GET", "POST"])
+def confirm_subscription(token: str):
+    subscriber = get_db().execute(
+        "SELECT id,status FROM email_subscribers "
+        "WHERE confirmation_token_hash=?",
+        (_token_hash(token),),
+    ).fetchone()
+    can_confirm = bool(subscriber and subscriber["status"] == "pending")
+    if request.method == "POST":
+        if not can_confirm:
+            flash("Liên kết xác nhận không hợp lệ hoặc đã được sử dụng.", "error")
+            return redirect(url_for("home"))
+        get_db().execute(
+            "UPDATE email_subscribers SET status='active',"
+            "confirmation_token_hash=NULL,confirmed_at=? WHERE id=?",
+            (utc_now(), subscriber["id"]),
+        )
+        get_db().commit()
+        flash("Đã xác nhận. Bạn sẽ nhận email khi có bài viết mới.", "success")
+        return redirect(url_for("home"))
+
+    return render_template(
+        "email_action.html",
+        title="Xác nhận đăng ký",
+        message=(
+            "Bấm nút bên dưới để xác nhận nhận email khi có bài viết mới."
+            if can_confirm
+            else "Liên kết này không hợp lệ, đã hết hiệu lực hoặc đã được xác nhận."
+        ),
+        action_url=url_for("confirm_subscription", token=token),
+        action_label="Xác nhận nhận thông báo",
+        show_action=can_confirm,
+    )
+
+
+@app.route("/email/huy-dang-ky/<token>", methods=["GET", "POST"])
+def unsubscribe(token: str):
+    serializer = URLSafeSerializer(
+        app.config["SECRET_KEY"], salt="email-unsubscribe"
+    )
+    try:
+        payload = serializer.loads(token)
+    except BadSignature:
+        payload = None
+
+    subscriber = None
+    if isinstance(payload, dict):
+        subscriber = get_db().execute(
+            "SELECT id,status FROM email_subscribers "
+            "WHERE id=? AND unsubscribe_token_hash=?",
+            (payload.get("id"), payload.get("key")),
+        ).fetchone()
+    can_unsubscribe = bool(
+        subscriber and subscriber["status"] == "active"
+    )
+
+    if request.method == "POST":
+        if not can_unsubscribe:
+            flash("Liên kết hủy đăng ký không hợp lệ hoặc đã được sử dụng.", "error")
+            return redirect(url_for("home"))
+        get_db().execute(
+            "UPDATE email_subscribers SET status='unsubscribed',"
+            "confirmation_token_hash=NULL WHERE id=?",
+            (subscriber["id"],),
+        )
+        get_db().commit()
+        flash("Đã hủy đăng ký nhận email thông báo.", "success")
+        return redirect(url_for("home"))
+
+    return render_template(
+        "email_action.html",
+        title="Hủy nhận thông báo",
+        message=(
+            "Bấm nút bên dưới để ngừng nhận email bài viết mới."
+            if can_unsubscribe
+            else "Liên kết hủy đăng ký không hợp lệ hoặc đã được sử dụng."
+        ),
+        action_url=url_for("unsubscribe", token=token),
+        action_label="Hủy đăng ký",
+        show_action=can_unsubscribe,
+    )
+
+
 @app.get("/lien-he")
 def contact():
     return render_template("contact.html")
@@ -934,6 +1264,7 @@ def new_post():
             return render_template("editor.html", post=None, categories=CATEGORIES)
         if values["status"] == "published":
             flash_publish_backup("Đã tạo và xuất bản bài viết.")
+            flash_new_post_notification(post_id)
         else:
             flash("Đã tạo bài viết nháp.", "success")
         return redirect(url_for("admin_edit_post", post_id=post_id))
@@ -1003,6 +1334,8 @@ def admin_edit_post(post_id: int):
             return redirect(url_for("admin_edit_post", post_id=post_id))
         if values["status"] == "published":
             flash_publish_backup("Đã lưu bài viết.")
+            if post["status"] != "published":
+                flash_new_post_notification(post_id)
         else:
             flash("Đã lưu bài viết nháp.", "success")
         return redirect(url_for("admin_edit_post", post_id=post_id))

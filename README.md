@@ -52,6 +52,19 @@ không được đưa lên Git:
 - `BLOG_HOST` và `BLOG_PORT`: địa chỉ bind và cổng khi chạy `python app.py`.
 - `BLOG_COOKIE_SECURE=true`: bật cookie chỉ gửi qua HTTPS. Chỉ bật khi reverse
   proxy HTTPS đã được cấu hình.
+- Email thông báo bài mới (Brevo SMTP): đặt `MAIL_SERVER=smtp-relay.brevo.com`,
+  `MAIL_PORT=587`, `MAIL_USERNAME` (tài khoản SMTP Brevo), `MAIL_PASSWORD`
+  (SMTP key), `MAIL_DEFAULT_SENDER` (địa chỉ gửi đã xác minh trong Brevo),
+  `MAIL_FROM_NAME` và `BLOG_PUBLIC_URL=https://quangdongofficial.com` trong
+  môi trường của service. Không ghi SMTP key vào source code hay đưa lên Git.
+  Xác minh domain gửi trong Brevo và cấu hình các DNS records SPF/DKIM theo
+  hướng dẫn Brevo trong Cloudflare để tăng khả năng gửi thành công.
+
+Khách đăng ký tại biểu mẫu cuối trang chủ và phải bấm xác nhận trong email.
+Sau khi một bài mới được xuất bản (hoặc bản nháp chuyển sang công khai), hệ
+thống gửi email có tiêu đề, đường dẫn bài viết và đường dẫn hủy đăng ký. Chỉnh
+sửa một bài đã công khai không gửi lại thông báo. Dịch vụ SMTP cần được cấu hình
+trước khi email xác nhận hoặc thông báo có thể gửi đi.
 
 Ứng dụng chấp nhận ảnh JPG, PNG, WEBP, GIF và video MP4, WEBM, MOV; mỗi lần
 request tối đa 60 MB và tối đa 12 tệp media mới cho một bài. Trong trình soạn
