@@ -67,6 +67,7 @@ CATEGORIES = [
     "Văn hóa Nhật",
     "Du lịch",
     "Ăn uống",
+    "Giải trí",
     "Chia sẻ khác",
 ]
 ALLOWED_HTML_TAGS = {

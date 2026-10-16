@@ -191,7 +191,7 @@ h1, h2, h3, p { margin-top: 0; }
 .editor-box h3 { margin: 0 0 14px; font: 600 16px var(--serif); }
 .editor-box .field-label { margin-bottom: 14px; }
 .editor-box .button { min-height: 40px; }
-.rich-toolbar { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px; border: 1px solid var(--line); border-bottom: 0; background: #f5f3ec; }
+.rich-toolbar { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 4px; padding: 6px; border: 1px solid var(--line); border-bottom: 0; background: #f5f3ec; }
 .rich-toolbar button { min-width: 31px; min-height: 30px; padding: 4px 8px; border: 1px solid transparent; border-radius: 2px; color: #46564a; background: transparent; font-size: 11px; }
 .rich-toolbar button:hover { border-color: var(--line); background: white; }
 .rich-editor { min-height: 320px; padding: 15px; border: 1px solid var(--line); outline-color: #839681; background: #fffefa; font-weight: 400; line-height: 1.8; }
@@ -299,7 +299,12 @@ h1, h2, h3, p { margin-top: 0; }
 .contact-list { display: grid; gap: 11px; }
 .contact-card { min-height: 78px; padding: 13px 17px; display: flex; align-items: center; gap: 15px; border: 1px solid var(--line); background: var(--white); transition: border-color .15s, transform .15s; }
 .contact-card:hover { transform: translateY(-2px); border-color: var(--green); }
-.contact-icon { width: 40px; height: 40px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 50%; color: white; background: var(--green); font: 600 17px var(--serif); }
+.contact-icon { width: 48px; height: 48px; display: grid; flex: 0 0 auto; place-items: center; border: 1px solid var(--line); border-radius: 50%; background: white; }
+.contact-icon svg { width: 26px; height: 26px; display: block; }
+.contact-icon-facebook { color: #1877f2; }
+.contact-icon-zalo { color: white; border-color: #0068ff; background: #0068ff; }
+.contact-icon-zalo svg { width: 34px; height: 24px; }
+.contact-icon-zalo text { fill: currentColor; font: 700 14px Arial, sans-serif; letter-spacing: -.7px; }
 .contact-card small, .contact-card strong { display: block; }
 .contact-card small { color: var(--muted); font-size: 9px; letter-spacing: .12em; }
 .contact-card strong { font-size: 13px; }
