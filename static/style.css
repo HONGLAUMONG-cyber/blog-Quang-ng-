@@ -104,6 +104,10 @@ h1, h2, h3, p { margin-top: 0; }
 .newsletter-count { padding-left: 28px; display: flex; align-items: center; gap: 12px; border-left: 1px solid #cbd3c6; }
 .newsletter-count strong { color: var(--green); font: 600 37px var(--serif); }
 .newsletter-count small { color: var(--muted); font-size: 10px; line-height: 1.5; }
+.subscribe-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.subscribe-form input { min-width: 180px; min-height: 42px; flex: 1; padding: 9px 12px; border: 1px solid #cbd3c6; border-radius: 2px; outline-color: var(--green); background: var(--white); font-size: 12px; }
+.subscribe-form .button { min-height: 42px; }
+.email-action-page form { margin-bottom: 20px; }
 .site-footer { padding: 55px max(5vw, calc((100% - 1280px) / 2)) 18px; color: #f5f1e8; background: #31463a; }
 .footer-inner { max-width: 1180px; margin: auto; display: flex; justify-content: space-between; gap: 45px; }
 .site-footer .eyebrow { color: #b9c7b5; }

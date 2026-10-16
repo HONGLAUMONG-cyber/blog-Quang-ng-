@@ -73,7 +73,17 @@
 
 <section class="newsletter">
   <div class="newsletter-symbol">手紙</div>
-  <div><span class="eyebrow">GỬI MỘT LỜI CHÀO</span><h2>Bạn đang chuẩn bị sang Nhật?</h2><p>Hy vọng những điều mình chia sẻ giúp hành trình của bạn bớt bỡ ngỡ hơn.</p></div>
+  <div>
+    <span class="eyebrow">NHẬN BÀI VIẾT MỚI QUA EMAIL</span>
+    <h2>Đừng bỏ lỡ câu chuyện mới.</h2>
+    <p>Nhập email để nhận đường dẫn mỗi khi có bài viết mới. Bạn cần xác nhận qua email và có thể hủy bất cứ lúc nào.</p>
+    <form class="subscribe-form" action="{{ url_for('subscribe_email') }}" method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label class="sr-only" for="subscribe-email">Địa chỉ email</label>
+      <input id="subscribe-email" type="email" name="email" maxlength="254" autocomplete="email" placeholder="Email của bạn" required>
+      <button class="button button-dark" type="submit">Bật thông báo <span>→</span></button>
+    </form>
+  </div>
   <span class="newsletter-count"><strong>{{ post_count }}</strong><small>bài viết<br>được chia sẻ</small></span>
 </section>
 {% endblock %}
